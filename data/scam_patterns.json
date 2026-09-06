@@ -1,0 +1,263 @@
+{
+  "otp_request": {
+    "category": "otp",
+    "scam_type": "Banking / OTP Scam",
+    "patterns": [
+      "tell me your otp",
+      "share your otp",
+      "give me the otp",
+      "give me your otp",
+      "provide your otp",
+      "send me your otp",
+      "read out the otp",
+      "tell me the verification code",
+      "share the 6 digit code",
+      "tell the sms code",
+      "forward the otp",
+      "enter the otp on call",
+      "what is the otp",
+      "give the code"
+    ],
+    "risk": 35,
+    "indicator": "OTP request",
+    "explanation": "The caller is asking for a One-Time Password (OTP) or authentication verification code.",
+    "recommendation": "Never share your OTP or security codes with anyone. Legitimate banks and organizations never ask for OTPs over calls."
+  },
+  "credential_theft": {
+    "category": "credentials",
+    "scam_type": "Credential Theft",
+    "patterns": [
+      "give me your card details",
+      "tell me your cvv",
+      "share your password",
+      "tell me your atm pin",
+      "provide your internet banking password",
+      "give me your card number and expiry",
+      "verify your debit card pin",
+      "share your pan and aadhaar details",
+      "give your login details",
+      "tell me your upi pin",
+      "share your secret pin",
+      "enter your atm pin"
+    ],
+    "risk": 35,
+    "indicator": "Banking credential request",
+    "explanation": "The caller is attempting to extract sensitive financial credentials such as CVV, ATM/UPI PIN, or passwords.",
+    "recommendation": "Never disclose CVV, ATM PIN, UPI PIN, or passwords. Banks will never ask for private credentials."
+  },
+  "bank_threat": {
+    "category": "banking",
+    "scam_type": "Account Suspension Scam",
+    "patterns": [
+      "account will be blocked",
+      "account has been blocked",
+      "bank account will be closed",
+      "account will be closed",
+      "your account will be blocked",
+      "account will be suspended",
+      "account has been suspended",
+      "account is suspended",
+      "account suspended",
+      "debit card will be blocked",
+      "card will be blocked",
+      "card blocked",
+      "card has been blocked",
+      "services will be terminated",
+      "account frozen",
+      "sim card will be blocked",
+      "sim card will be deactivated"
+    ],
+    "risk": 25,
+    "indicator": "Account suspension threat",
+    "explanation": "The caller is threatening immediate account suspension, deactivation, or card blocking.",
+    "recommendation": "Do not panic or comply under duress. Contact your official bank branch or official customer care directly to verify account status."
+  },
+  "upi_payment": {
+    "category": "payment",
+    "scam_type": "Payment Scam",
+    "patterns": [
+      "send money through upi",
+      "send money using upi",
+      "transfer money through upi",
+      "pay through upi",
+      "scan the qr code to receive",
+      "enter upi pin to receive money",
+      "send 1 rupee for verification",
+      "send 1 rupee on upi",
+      "send 1 rupee",
+      "send 1 rs",
+      "scan qr code to get refund",
+      "accept the payment request in gpay"
+    ],
+    "risk": 25,
+    "indicator": "UPI payment solicitation",
+    "explanation": "The caller is directing you to perform a UPI transaction, scan a QR code, or enter a PIN to receive money.",
+    "recommendation": "Do not scan QR codes or enter your UPI PIN to receive money. Entering a PIN always deducts funds from your account."
+  },
+  "payment_request": {
+    "category": "payment",
+    "scam_type": "Payment Scam",
+    "patterns": [
+      "send money",
+      "transfer money",
+      "send the money",
+      "make a payment",
+      "make the payment",
+      "transfer the amount",
+      "pay the fee",
+      "deposit cash",
+      "send advance fee",
+      "pay registration fee",
+      "transfer funds",
+      "wire money"
+    ],
+    "risk": 20,
+    "indicator": "Payment demand",
+    "explanation": "The caller is directing you to transfer or send money.",
+    "recommendation": "Do not transfer money to unverified individuals or third parties requesting urgent transfers."
+  },
+  "government_police_impersonation": {
+    "category": "impersonation",
+    "scam_type": "Government / Police Impersonation",
+    "patterns": [
+      "calling from police",
+      "calling from customs",
+      "cbi officer",
+      "trai official",
+      "arrest warrant issued",
+      "legal action will be taken",
+      "parcel has illegal items",
+      "drugs found in your parcel",
+      "digital arrest",
+      "narcotics department",
+      "crime branch investigation",
+      "cyber crime officer",
+      "non bailable warrant against you"
+    ],
+    "risk": 35,
+    "indicator": "Law enforcement / authority intimidation",
+    "explanation": "The caller is impersonating law enforcement, customs, or government officials and threatening legal coercion or digital arrest.",
+    "recommendation": "Law enforcement and government agencies do not conduct investigations or arrest people over phone/video calls. Hang up and report to the cybercrime portal."
+  },
+  "prize_lottery_scam": {
+    "category": "prize_reward",
+    "scam_type": "Prize / Reward Scam",
+    "patterns": [
+      "you have won a prize",
+      "won a lottery",
+      "lucky winner",
+      "pay processing fee to claim prize",
+      "pay 5000 rupees to receive",
+      "pay tax to claim reward",
+      "selected for cash award",
+      "claim your prize of",
+      "won cash prize",
+      "claim your lottery"
+    ],
+    "risk": 30,
+    "indicator": "Advance-fee prize lure",
+    "explanation": "The caller claims you won a lottery, prize, or reward but demands an upfront fee or tax to release it.",
+    "recommendation": "Legitimate lotteries and contests never require an advance fee or tax payment to claim winnings. This is an advance-fee fraud."
+  },
+  "tech_support_remote_access": {
+    "category": "technical_support",
+    "scam_type": "Technical Support Scam",
+    "patterns": [
+      "install anydesk",
+      "download anydesk",
+      "download teamviewer",
+      "install quicksupport",
+      "download apk file",
+      "install apk file",
+      "download apk",
+      "install apk",
+      "grant remote access",
+      "device has virus",
+      "computer is hacked",
+      "device is hacked",
+      "fix your hacked device",
+      "screen share your mobile",
+      "install support application"
+    ],
+    "risk": 30,
+    "indicator": "Remote access / malicious app installation",
+    "explanation": "The caller is attempting to gain remote control of your device or trick you into installing screen-sharing software.",
+    "recommendation": "Do not install AnyDesk, TeamViewer, QuickSupport, or unknown APK files requested over the phone."
+  },
+  "investment_loan_scam": {
+    "category": "loan_investment",
+    "scam_type": "Investment / Loan Scam",
+    "patterns": [
+      "guaranteed high return",
+      "guaranteed return",
+      "double your investment",
+      "double your money",
+      "pre approved zero interest loan",
+      "pre approved loan",
+      "pay processing fee for loan",
+      "daily profit guaranteed",
+      "part time task telegram profit",
+      "crypto investment guaranteed",
+      "100 percent return in one week"
+    ],
+    "risk": 25,
+    "indicator": "Unrealistic financial returns or loan advance fee",
+    "explanation": "The caller is offering unrealistic guaranteed returns or demanding upfront fees for pre-approved loans.",
+    "recommendation": "Avoid high-yield investment schemes and never pay upfront loan processing fees to unknown callers."
+  },
+  "urgency_threat_pressure": {
+    "category": "urgency",
+    "scam_type": "Urgency & Coercion Scam",
+    "patterns": [
+      "transfer money immediately or legal action",
+      "do it right now or face arrest",
+      "without delay or your account will be blocked",
+      "last warning before disconnection",
+      "within 10 minutes or face penalty",
+      "act immediately or line will be cut",
+      "tell me immediately or face consequences"
+    ],
+    "risk": 30,
+    "indicator": "Extreme urgency and coercive pressure",
+    "explanation": "The caller is manufacturing artificial urgency and applying coercive pressure to force hasty compliance.",
+    "recommendation": "Scammers manufacture urgent deadlines to prevent calm verification. Disconnect the call and verify independently."
+  },
+  "kyc_expiry_fraud": {
+    "category": "account_suspension",
+    "scam_type": "KYC Verification Scam",
+    "patterns": [
+      "kyc has expired",
+      "update your kyc immediately",
+      "update your kyc",
+      "kyc document verification",
+      "sim kyc expired",
+      "electricity bill kyc pending",
+      "update pan in bank account",
+      "kyc suspended"
+    ],
+    "risk": 25,
+    "indicator": "Urgent KYC update demand",
+    "explanation": "The caller falsely claims your KYC has expired and demands immediate online verification under threat of service cutoff.",
+    "recommendation": "Banks and telecom providers never mandate instant over-the-phone KYC under threat of same-day suspension."
+  },
+  "bank_impersonation": {
+    "category": "impersonation",
+    "scam_type": "Banking / OTP Scam",
+    "patterns": [
+      "calling from your bank",
+      "calling from the bank",
+      "i am calling from your bank",
+      "calling from your bank security department",
+      "calling from bank fraud department",
+      "calling from reserve bank of india",
+      "i am your bank branch manager",
+      "calling from sbi security cell",
+      "calling from hdfc fraud protection",
+      "calling from bank verification desk"
+    ],
+    "risk": 25,
+    "indicator": "Bank authority impersonation",
+    "explanation": "The caller is posing as a bank security, branch manager, or fraud prevention official.",
+    "recommendation": "Bank security teams never call customers asking for private credentials or requesting money transfers."
+  }
+}
