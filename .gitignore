@@ -47,4 +47,23 @@ htmlcov/
 # Internal / Temporary
 .freebuff/
 VoxShield/
+scratch_*.py
 
+# Models, Weights & Checkpoints (Do NOT commit binary weights)
+*.pth
+*.pt
+*.bin
+*.safetensors
+*.onnx
+*.plan
+*.engine
+ml/models/lightweight/rawtfnet/*.pth
+ml/models/lightweight/rawtfnet/*.onnx
+
+# Datasets & Audio Media
+datasets/
+*.wav
+*.mp3
+*.flac
+*.m4a
+*.ogg

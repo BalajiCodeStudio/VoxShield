@@ -1,88 +1,54 @@
-"""Threshold optimization from validation data.
-
-The decision threshold is optimized on the VALIDATION set only.
-The TEST set is NEVER used for threshold selection.
 """
+Threshold selection module for VoxShield Voice Deepfake Detector.
+Finds the optimal classification threshold (EER threshold or F1-maximization)
+using STRICTLY the validation set.
+"""
+
 from __future__ import annotations
 
-import json
-import logging
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any
-
 import numpy as np
-
-from ml.evaluation.metrics import compute_all_metrics
-
-logger = logging.getLogger("voxshield.evaluation.threshold")
+from typing import Tuple, List, Union
+from .metrics import compute_eer
 
 
-def optimize_threshold(
-    y_true: np.ndarray,
-    y_score: np.ndarray,
-    metric: str = "eer",
-    num_thresholds: int = 500,
-) -> dict[str, Any]:
-    """Find the optimal threshold on validation data.
-
-    Args:
-        y_true: binary validation labels
-        y_score: P(fake) scores from model(s)
-        metric: optimization target — 'eer', 'f1', or 'balanced'
-        num_thresholds: number of candidate thresholds to evaluate
-
-    Returns:
-        Dictionary with optimal threshold, metric value, and per-threshold results.
+def select_eer_threshold(
+    val_y_true: Union[List[int], np.ndarray],
+    val_y_scores: Union[List[float], np.ndarray],
+) -> Tuple[float, float]:
     """
-    thresholds = np.linspace(0.01, 0.99, num_thresholds)
+    Computes optimal EER threshold using ONLY validation data.
+    
+    Returns:
+        (optimal_threshold, validation_eer)
+    """
+    val_y_true_arr = np.array(val_y_true, dtype=int)
+    val_y_scores_arr = np.array(val_y_scores, dtype=float)
 
-    if metric == "eer":
-        from ml.evaluation.metrics import compute_eer
-        _, best_thr = compute_eer(y_true, y_score)
-        best_metrics = compute_all_metrics(y_true, y_score, threshold=best_thr)
-    elif metric == "f1":
-        best_f1 = -1.0
-        best_thr = 0.5
-        best_metrics = {}
-        for thr in thresholds:
-            m = compute_all_metrics(y_true, y_score, threshold=thr)
-            if m["f1"] > best_f1:
-                best_f1 = m["f1"]
-                best_thr = thr
-                best_metrics = m
-    elif metric == "balanced":
-        best_score = -1.0
-        best_thr = 0.5
-        best_metrics = {}
-        for thr in thresholds:
-            m = compute_all_metrics(y_true, y_score, threshold=thr)
-            # Balanced accuracy = (TPR + TNR) / 2
-            tpr = m["recall"]
-            tnr = 1 - m["false_positive_rate"]
-            bal_acc = (tpr + tnr) / 2
-            if bal_acc > best_score:
-                best_score = bal_acc
-                best_thr = thr
-                best_metrics = m
-    else:
-        raise ValueError(f"Unknown metric: {metric}. Use 'eer', 'f1', or 'balanced'.")
-
-    return {
-        "fake_threshold": round(float(best_thr), 4),
-        "real_threshold": round(float(best_thr), 4),
-        "uncertain_band": round(float(0.0), 4),
-        "optimization_metric": metric,
-        "metrics_at_threshold": best_metrics,
-        "num_validation_samples": len(y_true),
-        "optimization_date": datetime.now(timezone.utc).isoformat(),
-    }
+    val_eer, opt_thresh = compute_eer(val_y_true_arr, val_y_scores_arr)
+    return float(opt_thresh), float(val_eer)
 
 
-def save_threshold(result: dict[str, Any], path: str | Path) -> None:
-    """Save threshold configuration to JSON."""
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(result, f, indent=2, default=str)
-    logger.info("Saved threshold config to %s", path)
+def select_best_f1_threshold(
+    val_y_true: Union[List[int], np.ndarray],
+    val_y_scores: Union[List[float], np.ndarray],
+    threshold_steps: int = 100,
+) -> Tuple[float, float]:
+    """
+    Finds threshold that maximizes F1 score on validation set.
+    """
+    val_y_true_arr = np.array(val_y_true, dtype=int)
+    val_y_scores_arr = np.array(val_y_scores, dtype=float)
+
+    best_thresh = 0.50
+    best_f1 = 0.0
+
+    from sklearn.metrics import f1_score
+
+    for t in np.linspace(0.05, 0.95, threshold_steps):
+        preds = (val_y_scores_arr >= t).astype(int)
+        score = f1_score(val_y_true_arr, preds, zero_division=0)
+        if score > best_f1:
+            best_f1 = score
+            best_thresh = float(t)
+
+    return float(best_thresh), float(best_f1 * 100.0)

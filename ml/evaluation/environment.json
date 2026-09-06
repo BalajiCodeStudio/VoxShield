@@ -1,0 +1,18 @@
+{
+  "operating_system": "Windows-11-10.0.26200-SP0",
+  "system_name": "Windows",
+  "release": "11",
+  "architecture": "AMD64",
+  "processor": "Intel64 Family 6 Model 154 Stepping 3, GenuineIntel",
+  "cpu_count_physical": 10,
+  "cpu_count_logical": 16,
+  "cpu_max_frequency_mhz": 2300.0,
+  "total_ram_gb": 15.65,
+  "available_ram_gb": 4.27,
+  "python_version": "3.12.10",
+  "pytorch_version": "2.6.0+cpu",
+  "cuda_available": false,
+  "gpu_device_name": "None (CPU Inference)",
+  "gpu_count": 0,
+  "gpu_memory_gb": 0
+}

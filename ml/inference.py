@@ -14,9 +14,9 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(PROJECT_ROOT / "ml"))
 
-from backend.utils.config import load_config
-from backend.services.voice_detector import VoiceDetector
+from ml.inference.detector import VoiceDetector
 
 
 def main():
@@ -28,18 +28,17 @@ def main():
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
 
-    config = load_config(args.config) if args.config else load_config()
-    detector = VoiceDetector(config)
-    detector.load_models()
+    detector = VoiceDetector(config=args.config)
+    detector.load_model()
 
-    result = detector.predict_file(args.audio)
+    result = detector.predict(args.audio)
 
     if args.pretty:
-        print(json.dumps(result.to_dict(), indent=2))
+        print(json.dumps(result, indent=2))
     else:
-        print(json.dumps(result.to_dict()))
+        print(json.dumps(result))
 
-    sys.exit(0 if result.success else 1)
+    sys.exit(0 if result.get("prediction") != "UNCERTAIN" or result.get("deepfake_score") is not None else 1)
 
 
 if __name__ == "__main__":

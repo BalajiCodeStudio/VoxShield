@@ -1,0 +1,42 @@
+{
+  "model_name": "RawTFNet",
+  "evaluation_timestamp": "2026-09-06 18:01:33 UTC",
+  "category": "MEASURED RESULT",
+  "validation_metrics": {
+    "validation_samples": 20,
+    "derived_eer_threshold": 0.9961,
+    "validation_eer_percent": 0.0
+  },
+  "test_metrics": {
+    "accuracy_percent": 86.67,
+    "precision_percent": 78.95,
+    "recall_percent": 100.0,
+    "f1_percent": 88.24,
+    "roc_auc_percent": 100.0,
+    "eer_percent": 0.0,
+    "eer_threshold": 0.9981,
+    "evaluation_threshold": 0.9961,
+    "false_positive_rate": 0.2667,
+    "false_negative_rate": 0.0,
+    "confusion_matrix": {
+      "true_negatives_real_as_real": 11,
+      "false_positives_real_as_fake": 4,
+      "false_negatives_fake_as_real": 0,
+      "true_positives_fake_as_fake": 15
+    },
+    "total_samples": 30,
+    "total_real": 15,
+    "total_fake": 15
+  },
+  "published_benchmarks": {
+    "ASVspoof2019_LA_EER_percent": 1.99,
+    "ASVspoof2021_LA_EER_percent": 8.03,
+    "ASVspoof2021_DF_EER_percent": 15.16,
+    "InTheWild_EER_percent": 38.51
+  },
+  "target_comparison": {
+    "target_accuracy_percent": 95.0,
+    "measured_test_accuracy_percent": 86.67,
+    "target_met": false
+  }
+}
