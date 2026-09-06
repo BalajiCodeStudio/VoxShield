@@ -1,0 +1,7 @@
+# VoxShield - convenience install for the whole project (backend + ML Member 1)
+-r backend/requirements.txt
+-r ml/requirements.txt
+
+# --- dev / test ---
+pytest>=8.0
+httpx>=0.27

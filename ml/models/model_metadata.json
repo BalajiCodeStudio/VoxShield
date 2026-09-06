@@ -1,0 +1,14 @@
+{
+  "model_version": "1.0.0",
+  "primary_model": "W2V2-AASIST",
+  "secondary_model": "XLSR-SLS",
+  "tertiary_model": "Wav2Vec2-Large-AntiDeepfake",
+  "sample_rate": 16000,
+  "segment_samples": 64600,
+  "threshold": null,
+  "training_dataset": null,
+  "training_date": null,
+  "metrics": {},
+  "ensemble_method": null,
+  "note": "Populated automatically after training/evaluation. Do not edit manually."
+}
