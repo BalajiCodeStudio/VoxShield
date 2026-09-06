@@ -42,9 +42,58 @@ class _HistoryScreenState extends State<HistoryScreen> {
     return list;
   }
 
+  void _showClearHistoryConfirm() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF0F172A),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: Color(0xFF334155)),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.delete_sweep_rounded, color: Color(0xFFEF4444)),
+            SizedBox(width: 8),
+            Text('Clear Call History?', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: const Text(
+          'This will permanently delete all recorded call security logs from your device.',
+          style: TextStyle(color: Colors.white70, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              setState(() {
+                _audioService.clearHistory();
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('🗑️ Call history cleared.'),
+                  backgroundColor: Color(0xFF1E293B),
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEF4444)),
+            child: const Text('Clear All', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final records = _filteredRecords;
+    final allCount = _audioService.callHistory.length;
+    final highRiskCount = _audioService.callHistory.where((r) => r.level == RiskLevel.high || r.level == RiskLevel.critical).length;
+    final safeCount = _audioService.callHistory.where((r) => r.level == RiskLevel.safe).length;
 
     return Scaffold(
       backgroundColor: const Color(0xFF0A0F1D),
@@ -60,6 +109,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
             letterSpacing: 0.5,
           ),
         ),
+        actions: [
+          if (_audioService.callHistory.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.delete_outline_rounded, color: Colors.white60),
+              onPressed: _showClearHistoryConfirm,
+              tooltip: 'Clear History',
+            ),
+        ],
       ),
       body: Column(
         children: [
@@ -94,11 +151,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 // Filter chips
                 Row(
                   children: [
-                    _buildFilterChip('All'),
+                    _buildFilterChip('All', allCount),
                     const SizedBox(width: 8),
-                    _buildFilterChip('High Risk'),
+                    _buildFilterChip('High Risk', highRiskCount),
                     const SizedBox(width: 8),
-                    _buildFilterChip('Safe'),
+                    _buildFilterChip('Safe', safeCount),
                   ],
                 ),
               ],
@@ -145,14 +202,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  Widget _buildFilterChip(String label) {
+  Widget _buildFilterChip(String label, int count) {
     final isSelected = _selectedFilter == label;
 
     return GestureDetector(
       onTap: () => setState(() => _selectedFilter = label),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
           color: isSelected ? const Color(0xFF2563EB) : const Color(0xFF1E293B),
           borderRadius: BorderRadius.circular(20),
@@ -160,13 +217,34 @@ class _HistoryScreenState extends State<HistoryScreen> {
             color: isSelected ? const Color(0xFF60A5FA) : const Color(0xFF334155),
           ),
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected ? Colors.white : Colors.white60,
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? Colors.white : Colors.white60,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(width: 5),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(
+                color: isSelected ? Colors.white.withValues(alpha: 0.25) : const Color(0xFF0F172A),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                '$count',
+                style: TextStyle(
+                  color: isSelected ? Colors.white : Colors.white54,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

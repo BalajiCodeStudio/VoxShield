@@ -2,10 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/call_analysis.dart';
 import '../services/audio_service.dart';
-import '../widgets/analysis_card.dart';
-import '../widgets/risk_meter.dart';
 import '../widgets/voice_status.dart';
-import '../widgets/warning_card.dart';
 import 'risk_screen.dart';
 
 class CallScreen extends StatefulWidget {
@@ -32,8 +29,8 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
   bool _isAnswered = false;
   bool _isMuted = false;
   bool _isSpeaker = true;
-  bool _showKeypad = false;
   bool _isOverlayMinimized = false;
+  String _dialedKeypadDigits = '';
 
   late AnimationController _slideController;
   late Animation<Offset> _slideAnimation;
@@ -52,16 +49,15 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
 
     _slideController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 550),
     );
 
-    // Slide in from left/right
     _slideAnimation = Tween<Offset>(
-      begin: const Offset(-1.2, 0.0),
+      begin: const Offset(-1.1, 0.0),
       end: Offset.zero,
     ).animate(CurvedAnimation(
       parent: _slideController,
-      curve: Curves.easeOutBack,
+      curve: Curves.easeOutCubic,
     ));
 
     _audioService.startIncomingCall(
@@ -70,9 +66,18 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
       scenario: widget.scenario,
     );
 
-    // If auto protect is turned on in settings, auto answer after a delay or auto activate
+    // Slide in notification automatically upon call arrival
+    if (widget.settings.isOverlayEnabled) {
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted) {
+          _slideController.forward();
+        }
+      });
+    }
+
+    // Auto-protect if configured in settings
     if (widget.settings.autoProtectOnCall) {
-      Future.delayed(const Duration(milliseconds: 800), () {
+      Future.delayed(const Duration(milliseconds: 600), () {
         if (mounted && !_isAnswered) {
           _answerCall();
           _activateProtection();
@@ -95,13 +100,8 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
       }
     });
 
-    // Automatically slide HUD menu into screen upon call arrival/answer
-    if (widget.settings.isOverlayEnabled) {
-      Future.delayed(const Duration(milliseconds: 300), () {
-        if (mounted) {
-          _slideController.forward();
-        }
-      });
+    if (widget.settings.isOverlayEnabled && !_slideController.isCompleted) {
+      _slideController.forward();
     }
 
     _subscribeToStreams();
@@ -126,13 +126,30 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
   }
 
   void _activateProtection() {
+    if (!_isAnswered) {
+      _answerCall();
+    }
     _audioService.turnOnProtection();
     setState(() {});
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('🛡️ VoiceGuard Protection Activated: Real-time scan live.'),
+        backgroundColor: Color(0xFF10B981),
+        duration: Duration(seconds: 2),
+      ),
+    );
   }
 
   void _stopProtection() {
     _audioService.stopProtection();
     setState(() {});
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('⏸️ Protection Paused: Tap Turn On Protection to resume.'),
+        backgroundColor: Color(0xFFF97316),
+        duration: Duration(seconds: 2),
+      ),
+    );
   }
 
   void _endCall() {
@@ -145,6 +162,119 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
       MaterialPageRoute(
         builder: (context) => RiskScreen(analysis: finalAnalysis),
       ),
+    );
+  }
+
+  void _openKeypadModal() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0F172A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setKeypadState) {
+            return Container(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'DTMF In-Call Keypad',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, color: Colors.white60),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E293B),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          _dialedKeypadDigits.isEmpty ? 'Touch keys to send tone...' : _dialedKeypadDigits,
+                          style: TextStyle(
+                            color: _dialedKeypadDigits.isEmpty ? Colors.white38 : const Color(0xFF38BDF8),
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 2,
+                          ),
+                        ),
+                        if (_dialedKeypadDigits.isNotEmpty)
+                          IconButton(
+                            icon: const Icon(Icons.backspace_outlined, color: Colors.white60, size: 20),
+                            onPressed: () {
+                              setKeypadState(() {
+                                _dialedKeypadDigits = _dialedKeypadDigits.substring(0, _dialedKeypadDigits.length - 1);
+                              });
+                            },
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // Keypad grid
+                  ...[
+                    ['1', '2', '3'],
+                    ['4', '5', '6'],
+                    ['7', '8', '9'],
+                    ['*', '0', '#'],
+                  ].map((row) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: row.map((key) {
+                          return InkWell(
+                            onTap: () {
+                              setKeypadState(() {
+                                _dialedKeypadDigits += key;
+                              });
+                            },
+                            borderRadius: BorderRadius.circular(30),
+                            child: Container(
+                              width: 58,
+                              height: 58,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF1E293B),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Center(
+                                child: Text(
+                                  key,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    );
+                  }),
+                  const SizedBox(height: 10),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -170,7 +300,7 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
       body: SafeArea(
         child: Stack(
           children: [
-            // Background ambient lighting
+            // Ambient Lighting
             Positioned(
               top: -60,
               right: -60,
@@ -186,7 +316,7 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
               ),
             ),
 
-            // Main Call User Interface
+            // Main UI
             Column(
               children: [
                 _buildTopAppBar(),
@@ -200,17 +330,27 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
                         _buildCallerProfile(),
                         const SizedBox(height: 16),
 
-                        // If call is answered and overlay is enabled, show the animated HUD Menu
-                        if (_isAnswered && widget.settings.isOverlayEnabled)
+                        // Automatic Slide-In Notification Card
+                        if (widget.settings.isOverlayEnabled)
                           _buildSlideInMenu(),
 
-                        // If overlay is disabled in settings, show a clean indicator
-                        if (_isAnswered && !widget.settings.isOverlayEnabled)
+                        // Notice if user disabled overlay in settings
+                        if (!widget.settings.isOverlayEnabled)
                           _buildOverlayDisabledNotice(),
 
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 14),
 
-                        // Real-time live transcript feed if enabled and protection is on
+                        // Real-time voice biometrics waveform
+                        if (_isAnswered && _audioService.isProtectionActive) ...[
+                          VoiceStatusWidget(
+                            voiceAnalysis: _liveAnalysis?.voiceAnalysis,
+                            waveformStream: _audioService.waveformStream,
+                            isLive: true,
+                          ),
+                          const SizedBox(height: 14),
+                        ],
+
+                        // Live Speech Transcript Box
                         if (_isAnswered && _audioService.isProtectionActive && widget.settings.showLiveTranscript)
                           _buildLiveTranscriptBox(),
 
@@ -220,7 +360,7 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
                   ),
                 ),
 
-                // Call action buttons (Keypad, Mute, Speaker, Answer / End)
+                // Bottom Call Controls (Keypad, Mute, Speaker, Answer / End)
                 _buildCallControls(),
               ],
             ),
@@ -246,13 +386,13 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
                 width: 8,
                 height: 8,
                 decoration: BoxDecoration(
-                  color: _isAnswered ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+                  color: _audioService.isProtectionActive ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
                   shape: BoxShape.circle,
                 ),
               ),
               const SizedBox(width: 6),
               Text(
-                _isAnswered ? 'VOXSHIELD SHIELD ACTIVE' : 'INCOMING CALL DETECTED',
+                _audioService.isProtectionActive ? 'VOXSHIELD PROTECTED' : 'CALL ACTIVE',
                 style: const TextStyle(
                   color: Colors.white70,
                   fontSize: 11,
@@ -278,7 +418,7 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
                 }
               });
             },
-            tooltip: 'Toggle Detection HUD',
+            tooltip: 'Toggle Detection Notification',
           ),
         ],
       ),
@@ -292,21 +432,21 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
           alignment: Alignment.center,
           children: [
             Container(
-              width: 88,
-              height: 88,
+              width: 80,
+              height: 80,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: const Color(0xFF1E293B),
                 border: Border.all(
                   color: _audioService.isProtectionActive
-                      ? (_liveAnalysis?.level.color ?? const Color(0xFF38BDF8))
+                      ? (_liveAnalysis?.level.color ?? const Color(0xFFF97316))
                       : const Color(0xFF475569),
                   width: 2.5,
                 ),
               ),
               child: const Icon(
                 Icons.person_rounded,
-                size: 50,
+                size: 46,
                 color: Colors.white70,
               ),
             ),
@@ -320,34 +460,34 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
                     color: Color(0xFF10B981),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.phone_in_talk, size: 16, color: Colors.white),
+                  child: const Icon(Icons.phone_in_talk, size: 14, color: Colors.white),
                 ),
               ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         Text(
           widget.callerName,
           style: const TextStyle(
             color: Colors.white,
-            fontSize: 20,
+            fontSize: 18,
             fontWeight: FontWeight.w800,
             letterSpacing: 0.3,
           ),
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 2),
         Text(
           widget.callerNumber,
           style: const TextStyle(
             color: Colors.white60,
-            fontSize: 14,
+            fontSize: 13,
             fontWeight: FontWeight.w500,
           ),
         ),
         const SizedBox(height: 6),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
           decoration: BoxDecoration(
             color: const Color(0xFF1E293B),
             borderRadius: BorderRadius.circular(20),
@@ -356,7 +496,7 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
             _isAnswered ? _formatDuration(_secondsElapsed) : 'Incoming VoIP Call...',
             style: TextStyle(
               color: _isAnswered ? const Color(0xFF38BDF8) : Colors.amberAccent,
-              fontSize: 12,
+              fontSize: 11,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -365,129 +505,123 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
     );
   }
 
-  /// The requested Slide-In HUD Menu with Before / After Activation States
+  /// Slide-In Notification Menu matching the exact user UI specification
   Widget _buildSlideInMenu() {
     return SlideTransition(
       position: _slideAnimation,
       child: Container(
         width: double.infinity,
         margin: const EdgeInsets.symmetric(vertical: 8),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: const Color(0xFF131B2E).withValues(alpha: 0.96),
-          borderRadius: BorderRadius.circular(20),
+          color: const Color(0xFF0F172A),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: _audioService.isProtectionActive
-                ? (_liveAnalysis?.level.color.withValues(alpha: 0.6) ?? const Color(0xFF06B6D4))
-                : const Color(0xFF334155),
-            width: 1.5,
+                ? const Color(0xFFF97316)
+                : const Color(0xFF475569),
+            width: 1.8,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.45),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
+              color: Colors.black.withValues(alpha: 0.5),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
             ),
           ],
         ),
         child: _audioService.isProtectionActive
-            ? _buildProtectedHUDState()
-            : _buildUnprotectedHUDState(),
+            ? _buildProtectedStateExact()
+            : _buildUnprotectedStateExact(),
       ),
     );
   }
 
-  /// State BEFORE Activation
-  Widget _buildUnprotectedHUDState() {
+  /// ┌─────────────────────────────┐
+  /// │       VOICEGUARD            │
+  /// │                             │
+  /// │   📞 CALL ACTIVE             │
+  /// │                             │
+  /// │   Protection: OFF           │
+  /// │                             │
+  /// │  ┌───────────────────────┐  │
+  /// │  │ TURN ON PROTECTION    │  │
+  /// │  └───────────────────────┘  │
+  /// │                             │
+  /// └─────────────────────────────┘
+  Widget _buildUnprotectedStateExact() {
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
+        // VOICEGUARD Title
+        const Text(
+          'VOICEGUARD',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 2.5,
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // 📞 CALL ACTIVE
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xFF0F172A),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Text(
-                'VOICEGUARD / VOXSHIELD',
-                style: TextStyle(
-                  color: Color(0xFF38BDF8),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.5,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 14),
-        const Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.phone_in_talk_rounded, color: Color(0xFF10B981), size: 20),
-            SizedBox(width: 8),
+            const Icon(Icons.phone_in_talk_rounded, color: Color(0xFF10B981), size: 22),
+            const SizedBox(width: 8),
             Text(
-              'CALL ACTIVE',
-              style: TextStyle(
+              _isAnswered ? 'CALL ACTIVE' : 'INCOMING CALL',
+              style: const TextStyle(
                 color: Colors.white,
-                fontSize: 15,
+                fontSize: 16,
                 fontWeight: FontWeight.w800,
-                letterSpacing: 1.0,
+                letterSpacing: 1.5,
               ),
             ),
           ],
-        ),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-          decoration: BoxDecoration(
-            color: const Color(0xFFEF4444).withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: const Text(
-            'Protection: OFF',
-            style: TextStyle(
-              color: Color(0xFFF87171),
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
         ),
         const SizedBox(height: 16),
 
-        // TURN ON PROTECTION Button
-        SizedBox(
+        // Protection: OFF
+        const Text(
+          'Protection: OFF',
+          style: TextStyle(
+            color: Colors.white70,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.8,
+          ),
+        ),
+        const SizedBox(height: 22),
+
+        // [ TURN ON PROTECTION ] Button
+        Container(
           width: double.infinity,
-          height: 48,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: const Color(0xFF60A5FA), width: 1.5),
+          ),
           child: ElevatedButton(
             onPressed: _activateProtection,
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2563EB),
+              backgroundColor: const Color(0xFF1E3A8A),
               foregroundColor: Colors.white,
-              elevation: 4,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              elevation: 0,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: const BorderSide(color: Color(0xFF60A5FA), width: 1.2),
+                borderRadius: BorderRadius.circular(7),
               ),
             ),
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.shield_outlined, size: 20),
-                SizedBox(width: 8),
-                Text(
-                  'TURN ON PROTECTION',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.1,
-                  ),
-                ),
-              ],
+            child: const Text(
+              'TURN ON PROTECTION',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.5,
+              ),
             ),
           ),
         ),
@@ -495,8 +629,23 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
     );
   }
 
-  /// State AFTER Activation
-  Widget _buildProtectedHUDState() {
+  /// ┌─────────────────────────────┐
+  /// │       🛡 PROTECTED          │
+  /// │                             │
+  /// │       RISK SCORE            │
+  /// │          72                 │
+  /// │       ORANGE ⚠️             │
+  /// │                             │
+  /// │ Deepfake       78%          │
+  /// │ Scam           81%          │
+  /// │ Urgency        70%          │
+  /// │                             │
+  /// │ ⚠️ OTP request detected     │
+  /// │ ⚠️ Urgent payment request   │
+  /// │                             │
+  /// │ [ STOP PROTECTION ]         │
+  /// └─────────────────────────────┘
+  Widget _buildProtectedStateExact() {
     final analysis = _liveAnalysis ??
         CallAnalysis(
           overallRisk: 72,
@@ -510,129 +659,194 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
             ScamWarning(
               id: 'w1',
               title: '⚠️ OTP request detected',
-              description: 'Caller demanded 6-digit passcode',
+              description: 'Caller demanded 6-digit SMS verification code',
               category: 'OTP',
               severity: RiskLevel.critical,
             ),
             ScamWarning(
               id: 'w2',
               title: '⚠️ Urgent payment request',
-              description: 'High-pressure financial demand detected',
+              description: 'Immediate financial authorization pressure detected',
               category: 'URGENT_PAYMENT',
               severity: RiskLevel.high,
             ),
           ],
-          detectedPatterns: ['OTP Theft', 'Deepfake Neural Voice'],
+          detectedPatterns: ['OTP Harvesting', 'Deepfake Neural Voice'],
         );
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        // Header: 🛡 PROTECTED
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        // 🛡 PROTECTED
+        const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Row(
-              children: [
-                Icon(Icons.verified_user_rounded, color: Color(0xFF10B981), size: 18),
-                SizedBox(width: 6),
-                Text(
-                  '🛡 PROTECTED',
-                  style: TextStyle(
-                    color: Color(0xFF10B981),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.2,
-                  ),
-                ),
-              ],
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: const Color(0xFFEF4444).withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Text(
-                'LIVE MONITORING',
-                style: TextStyle(
-                  color: Color(0xFFF87171),
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                ),
+            Icon(Icons.shield_rounded, color: Color(0xFF10B981), size: 20),
+            SizedBox(width: 8),
+            Text(
+              'PROTECTED',
+              style: TextStyle(
+                color: Color(0xFF10B981),
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 2.0,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 16),
 
-        // Live Risk Meter (Displays Score e.g. 72, Level badge e.g. ORANGE ⚠️)
-        RiskMeter(
-          score: analysis.overallRisk,
-          level: analysis.level,
-          size: 140,
-        ),
-        const SizedBox(height: 14),
-
-        // Deepfake, Scam, Urgency metrics breakdown
-        AnalysisCard(
-          deepfakeScore: analysis.voiceRisk,
-          scamScore: analysis.scamRisk,
-          urgencyScore: analysis.urgencyScore,
-          isCompact: true,
-        ),
-        const SizedBox(height: 12),
-
-        // Voice Biometrics and Waveform Status
-        VoiceStatusWidget(
-          voiceAnalysis: analysis.voiceAnalysis,
-          waveformStream: _audioService.waveformStream,
-          isLive: true,
-        ),
-        const SizedBox(height: 12),
-
-        // Detected Scam Warnings List (e.g. ⚠️ OTP request detected, ⚠️ Urgent payment request)
-        if (analysis.warnings.isNotEmpty) ...[
-          Column(
-            children: analysis.warnings
-                .map((w) => WarningCard(warning: w, isCompact: true))
-                .toList(),
+        // RISK SCORE
+        const Text(
+          'RISK SCORE',
+          style: TextStyle(
+            color: Colors.white70,
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.5,
           ),
-          const SizedBox(height: 12),
-        ],
+        ),
+        const SizedBox(height: 4),
 
-        // STOP PROTECTION button
-        SizedBox(
+        // 72
+        Text(
+          '${analysis.overallRisk}',
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 44,
+            fontWeight: FontWeight.w900,
+            height: 1.0,
+          ),
+        ),
+        const SizedBox(height: 6),
+
+        // ORANGE ⚠️ Badge
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(
+            color: analysis.level.color.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: analysis.level.color.withValues(alpha: 0.8), width: 1.2),
+          ),
+          child: Text(
+            analysis.level.colorBadgeText,
+            style: TextStyle(
+              color: analysis.level.color,
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.0,
+            ),
+          ),
+        ),
+        const SizedBox(height: 18),
+
+        // Metrics Breakdown:
+        // Deepfake       78%
+        // Scam           81%
+        // Urgency        70%
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E293B).withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFF334155)),
+          ),
+          child: Column(
+            children: [
+              _buildMetricTextRow('Deepfake', '${analysis.voiceRisk}%', const Color(0xFFEF4444)),
+              const SizedBox(height: 6),
+              _buildMetricTextRow('Scam', '${analysis.scamRisk}%', const Color(0xFFF97316)),
+              const SizedBox(height: 6),
+              _buildMetricTextRow('Urgency', '${analysis.urgencyScore}%', const Color(0xFFFBBF24)),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+
+        // ⚠️ OTP request detected
+        // ⚠️ Urgent payment request
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildWarningItem('⚠️ OTP request detected', const Color(0xFFEF4444)),
+            const SizedBox(height: 6),
+            _buildWarningItem('⚠️ Urgent payment request', const Color(0xFFF97316)),
+          ],
+        ),
+        const SizedBox(height: 18),
+
+        // [ STOP PROTECTION ] Button
+        Container(
           width: double.infinity,
-          height: 42,
-          child: OutlinedButton(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: const Color(0xFFEF4444), width: 1.2),
+          ),
+          child: TextButton(
             onPressed: _stopProtection,
-            style: OutlinedButton.styleFrom(
+            style: TextButton.styleFrom(
               foregroundColor: const Color(0xFFEF4444),
-              side: const BorderSide(color: Color(0xFFEF4444), width: 1.2),
+              padding: const EdgeInsets.symmetric(vertical: 12),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(7),
               ),
             ),
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.stop_circle_outlined, size: 18),
-                SizedBox(width: 6),
-                Text(
-                  'STOP PROTECTION',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 13,
-                    letterSpacing: 1.0,
-                  ),
-                ),
-              ],
+            child: const Text(
+              '[ STOP PROTECTION ]',
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 13,
+                letterSpacing: 1.2,
+              ),
             ),
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildMetricTextRow(String label, String value, Color valueColor) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            color: valueColor,
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWarningItem(String text, Color color) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12.5,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
     );
   }
 
@@ -649,7 +863,7 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
           const SizedBox(width: 8),
           const Expanded(
             child: Text(
-              'HUD overlay hidden per user settings. Background monitoring active.',
+              'Notification overlay hidden per user settings.',
               style: TextStyle(color: Colors.white70, fontSize: 12),
             ),
           ),
@@ -660,7 +874,7 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
                 _slideController.forward();
               });
             },
-            child: const Text('Show HUD'),
+            child: const Text('Show Notification'),
           ),
         ],
       ),
@@ -722,7 +936,6 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
         mainAxisSize: MainAxisSize.min,
         children: [
           if (_isAnswered) ...[
-            // Middle in-call tools: Mute, Keypad, Speaker, Shield Toggle
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
@@ -730,19 +943,37 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
                   icon: _isMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
                   label: _isMuted ? 'Unmute' : 'Mute',
                   isActive: _isMuted,
-                  onTap: () => setState(() => _isMuted = !_isMuted),
+                  onTap: () {
+                    setState(() => _isMuted = !_isMuted);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(_isMuted ? '🔇 Microphone muted.' : '🎙️ Microphone live.'),
+                        duration: const Duration(milliseconds: 1200),
+                        backgroundColor: const Color(0xFF1E293B),
+                      ),
+                    );
+                  },
                 ),
                 _buildToolButton(
                   icon: Icons.dialpad_rounded,
                   label: 'Keypad',
-                  isActive: _showKeypad,
-                  onTap: () => setState(() => _showKeypad = !_showKeypad),
+                  isActive: false,
+                  onTap: _openKeypadModal,
                 ),
                 _buildToolButton(
                   icon: _isSpeaker ? Icons.volume_up_rounded : Icons.volume_down_rounded,
                   label: 'Speaker',
                   isActive: _isSpeaker,
-                  onTap: () => setState(() => _isSpeaker = !_isSpeaker),
+                  onTap: () {
+                    setState(() => _isSpeaker = !_isSpeaker);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(_isSpeaker ? '🔊 Speakerphone ON.' : '📱 Earpiece mode.'),
+                        duration: const Duration(milliseconds: 1200),
+                        backgroundColor: const Color(0xFF1E293B),
+                      ),
+                    );
+                  },
                 ),
                 _buildToolButton(
                   icon: _audioService.isProtectionActive
@@ -764,19 +995,17 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
             const SizedBox(height: 16),
           ],
 
-          // Big Bottom Action Buttons (Accept / End Call)
+          // Bottom Action Buttons (Answer / Decline / End Call)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               if (!_isAnswered) ...[
-                // Decline Button
                 _buildBigActionButton(
                   color: const Color(0xFFEF4444),
                   icon: Icons.call_end_rounded,
                   label: 'Decline',
                   onTap: () => Navigator.pop(context),
                 ),
-                // Answer Button
                 _buildBigActionButton(
                   color: const Color(0xFF10B981),
                   icon: Icons.call_rounded,
@@ -784,7 +1013,6 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
                   onTap: _answerCall,
                 ),
               ] else ...[
-                // End Call Button
                 _buildBigActionButton(
                   color: const Color(0xFFEF4444),
                   icon: Icons.call_end_rounded,

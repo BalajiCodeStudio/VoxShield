@@ -4,6 +4,7 @@ import '../services/api_service.dart';
 import '../services/audio_service.dart';
 import 'call_screen.dart';
 import 'history_screen.dart';
+import 'risk_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final AppSettings settings;
@@ -22,6 +23,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final ApiService _apiService = ApiService();
   bool _isShieldEnabled = true;
   bool _isBackendOnline = false;
+  String _pingLatency = '';
 
   @override
   void initState() {
@@ -31,10 +33,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _checkServer() async {
+    final stopwatch = Stopwatch()..start();
     final online = await _apiService.checkHealth();
+    stopwatch.stop();
+
     if (mounted) {
       setState(() {
         _isBackendOnline = online;
+        _pingLatency = online ? '${stopwatch.elapsedMilliseconds}ms' : 'Offline';
       });
     }
   }
@@ -44,6 +50,17 @@ class _HomeScreenState extends State<HomeScreen> {
     required String number,
     required String scenario,
   }) {
+    if (!_isShieldEnabled) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('⚠️ Master Shield is paused. Enabling shield for test call.'),
+          backgroundColor: Color(0xFFF59E0B),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      setState(() => _isShieldEnabled = true);
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -54,6 +71,107 @@ class _HomeScreenState extends State<HomeScreen> {
           settings: widget.settings,
         ),
       ),
+    ).then((_) => setState(() {}));
+  }
+
+  void _openCustomCallSimulatorDialog() {
+    final nameCtrl = TextEditingController(text: 'Unknown Suspicious Caller');
+    final phoneCtrl = TextEditingController(text: '+1 (888) 555-0199');
+    String selectedScenario = 'bank_otp_scam';
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF0F172A),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: const BorderSide(color: Color(0xFF334155)),
+              ),
+              title: const Row(
+                children: [
+                  Icon(Icons.tune_rounded, color: Color(0xFF38BDF8)),
+                  SizedBox(width: 8),
+                  Text('Custom Test Call', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('CALLER NAME', style: TextStyle(color: Colors.white60, fontSize: 11, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
+                    TextField(
+                      controller: nameCtrl,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: const Color(0xFF1E293B),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text('PHONE NUMBER', style: TextStyle(color: Colors.white60, fontSize: 11, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
+                    TextField(
+                      controller: phoneCtrl,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: const Color(0xFF1E293B),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    const Text('THREAT SCENARIO', style: TextStyle(color: Colors.white60, fontSize: 11, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 6),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedScenario,
+                      dropdownColor: const Color(0xFF1E293B),
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: const Color(0xFF1E293B),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'bank_otp_scam', child: Text('🏦 Bank OTP Scam (Score 72 - Orange)')),
+                        DropdownMenuItem(value: 'family_emergency_deepfake', child: Text('🚨 Deepfake Voice Extortion (Score 89 - Red)')),
+                        DropdownMenuItem(value: 'legitimate_call', child: Text('✅ Safe Contact Call (Score 12 - Green)')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) setDialogState(() => selectedScenario = val);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _launchCallSimulation(
+                      name: nameCtrl.text.trim().isEmpty ? 'Unknown Caller' : nameCtrl.text.trim(),
+                      number: phoneCtrl.text.trim().isEmpty ? '+1 (800) 000-0000' : phoneCtrl.text.trim(),
+                      scenario: selectedScenario,
+                    );
+                  },
+                  icon: const Icon(Icons.phone_in_talk, size: 16),
+                  label: const Text('Start Call'),
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563EB)),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -234,11 +352,17 @@ class _HomeScreenState extends State<HomeScreen> {
                           size: 20,
                         ),
                         suffixIcon: TextButton(
-                          onPressed: () {
-                            _checkServer();
-                            setModalState(() {});
+                          onPressed: () async {
+                            final sw = Stopwatch()..start();
+                            final res = await _apiService.checkHealth();
+                            sw.stop();
+                            setModalState(() {
+                              _isBackendOnline = res;
+                              _pingLatency = res ? '${sw.elapsedMilliseconds}ms' : 'Offline';
+                            });
+                            setState(() {});
                           },
-                          child: const Text('Test', style: TextStyle(color: Color(0xFF38BDF8))),
+                          child: Text(_pingLatency.isNotEmpty ? _pingLatency : 'Test', style: const TextStyle(color: Color(0xFF38BDF8))),
                         ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -320,7 +444,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const HistoryScreen()),
-              );
+              ).then((_) => setState(() {}));
             },
             tooltip: 'Call History',
           ),
@@ -345,7 +469,7 @@ class _HomeScreenState extends State<HomeScreen> {
             _buildStatsGrid(),
             const SizedBox(height: 24),
 
-            // Simulation Test Suite (Member 4 Demo Launcher)
+            // Simulation Test Suite
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -358,18 +482,29 @@ class _HomeScreenState extends State<HomeScreen> {
                     letterSpacing: 1.2,
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF38BDF8).withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Text(
-                    'MEMBER 4 FLOW',
-                    style: TextStyle(
-                      color: Color(0xFF38BDF8),
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
+                InkWell(
+                  onTap: _openCustomCallSimulatorDialog,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF38BDF8).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFF38BDF8).withValues(alpha: 0.4)),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.add_call, size: 12, color: Color(0xFF38BDF8)),
+                        SizedBox(width: 4),
+                        Text(
+                          'CUSTOM CALL',
+                          style: TextStyle(
+                            color: Color(0xFF38BDF8),
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -440,7 +575,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (context) => const HistoryScreen()),
-                    );
+                    ).then((_) => setState(() {}));
                   },
                   child: const Text('View All', style: TextStyle(color: Color(0xFF38BDF8), fontSize: 12)),
                 ),
@@ -521,6 +656,13 @@ class _HomeScreenState extends State<HomeScreen> {
               setState(() {
                 _isShieldEnabled = val;
               });
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(val ? '🛡️ Master Protection Enabled.' : '⏸️ Master Protection Paused.'),
+                  duration: const Duration(seconds: 1),
+                  backgroundColor: const Color(0xFF1E293B),
+                ),
+              );
             },
           ),
         ],
@@ -534,7 +676,7 @@ class _HomeScreenState extends State<HomeScreen> {
         Expanded(
           child: _buildStatTile(
             title: 'Scanned',
-            value: '42',
+            value: '${_audioService.totalScannedCount}',
             icon: Icons.phone_callback_rounded,
             color: const Color(0xFF38BDF8),
           ),
@@ -543,7 +685,7 @@ class _HomeScreenState extends State<HomeScreen> {
         Expanded(
           child: _buildStatTile(
             title: 'Blocked',
-            value: '14',
+            value: '${_audioService.totalBlockedCount}',
             icon: Icons.gpp_bad_rounded,
             color: const Color(0xFFEF4444),
           ),
@@ -552,7 +694,7 @@ class _HomeScreenState extends State<HomeScreen> {
         Expanded(
           child: _buildStatTile(
             title: 'Deepfakes',
-            value: '8',
+            value: '${_audioService.totalDeepfakesCount}',
             icon: Icons.record_voice_over_rounded,
             color: const Color(0xFFF97316),
           ),
@@ -711,46 +853,62 @@ class _HomeScreenState extends State<HomeScreen> {
       children: recent.map((r) {
         return Container(
           margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: const Color(0xFF131B2E),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: const Color(0xFF1E293B)),
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Icon(r.level.icon, color: r.level.color, size: 20),
-                  const SizedBox(width: 10),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        r.callerName,
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13),
-                      ),
-                      Text(
-                        r.callerNumber,
-                        style: const TextStyle(color: Colors.white60, fontSize: 11),
-                      ),
-                    ],
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => RiskScreen(analysis: r.analysis),
                   ),
-                ],
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: r.level.color.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(8),
+                );
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(r.level.icon, color: r.level.color, size: 20),
+                        const SizedBox(width: 10),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              r.callerName,
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13),
+                            ),
+                            Text(
+                              r.callerNumber,
+                              style: const TextStyle(color: Colors.white60, fontSize: 11),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: r.level.color.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '${r.overallRisk}% Risk',
+                        style: TextStyle(color: r.level.color, fontWeight: FontWeight.bold, fontSize: 11),
+                      ),
+                    ),
+                  ],
                 ),
-                child: Text(
-                  '${r.overallRisk}% Risk',
-                  style: TextStyle(color: r.level.color, fontWeight: FontWeight.bold, fontSize: 11),
-                ),
               ),
-            ],
+            ),
           ),
         );
       }).toList(),

@@ -183,17 +183,17 @@ class _RiskMeterPainter extends CustomPainter {
 
     // Active progress arc
     final progressPaint = Paint()
-      ..shader = SweepGradient(
+      ..shader = const SweepGradient(
         startAngle: -pi * 1.25,
         endAngle: pi * 0.25,
-        colors: const [
+        colors: [
           Color(0xFF10B981), // Safe Green
           Color(0xFFFBBF24), // Moderate Yellow
           Color(0xFFF97316), // High Orange
           Color(0xFFEF4444), // Critical Red
         ],
-        stops: const [0.0, 0.4, 0.7, 1.0],
-        transform: const GradientRotation(-pi * 0.75),
+        stops: [0.0, 0.4, 0.7, 1.0],
+        transform: GradientRotation(-pi * 0.75),
       ).createShader(Rect.fromCircle(center: center, radius: radius))
       ..style = PaintingStyle.stroke
       ..strokeWidth = strokeWidth

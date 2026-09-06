@@ -42,7 +42,7 @@ class AudioStreamService {
   int _callDurationSeconds = 0;
   int get callDurationSeconds => _callDurationSeconds;
 
-  String _currentCallerName = 'Unknown Caller';
+  String _currentCallerName = 'Chase Fraud Security (Spoofed)';
   String _currentCallerNumber = '+1 (800) 935-9935';
   String _currentScenario = 'bank_otp_scam';
 
@@ -52,6 +52,26 @@ class AudioStreamService {
   // Historical records in-memory storage
   final List<CallRecord> _callHistory = [];
   List<CallRecord> get callHistory => List.unmodifiable(_callHistory);
+
+  // Set of reported numbers
+  final Set<String> _reportedNumbers = {};
+  Set<String> get reportedNumbers => Set.unmodifiable(_reportedNumbers);
+
+  void reportNumber(String number) {
+    _reportedNumbers.add(number);
+  }
+
+  bool isNumberReported(String number) {
+    return _reportedNumbers.contains(number);
+  }
+
+  void clearHistory() {
+    _callHistory.clear();
+  }
+
+  int get totalScannedCount => max(42, _callHistory.length);
+  int get totalBlockedCount => _callHistory.where((r) => r.level == RiskLevel.high || r.level == RiskLevel.critical).length + 14;
+  int get totalDeepfakesCount => _callHistory.where((r) => r.analysis.voiceRisk > 50).length + 8;
 
   void initializeDemoHistory() {
     if (_callHistory.isNotEmpty) return;
@@ -173,7 +193,7 @@ class AudioStreamService {
       callerName: _currentCallerName,
       callerNumber: _currentCallerNumber,
       timestamp: DateTime.now(),
-      durationSeconds: _callDurationSeconds,
+      durationSeconds: max(1, _callDurationSeconds),
       overallRisk: finalAnalysis.overallRisk,
       level: finalAnalysis.level,
       scamCategories: finalAnalysis.detectedPatterns.isNotEmpty
@@ -211,6 +231,16 @@ class AudioStreamService {
   void _startLiveAnalysisSimulation() {
     _analysisTimer?.cancel();
 
+    if (_currentScenario == 'family_emergency_deepfake') {
+      _startFamilyDeepfakeSimulation();
+    } else if (_currentScenario == 'legitimate_call') {
+      _startSafeCallSimulation();
+    } else {
+      _startBankOtpScamSimulation();
+    }
+  }
+
+  void _startBankOtpScamSimulation() {
     // Initial state upon turning protection on
     _currentLiveAnalysis = CallAnalysis(
       overallRisk: 18,
@@ -234,6 +264,7 @@ class AudioStreamService {
       isLive: true,
     );
     _liveAnalysisController.add(_currentLiveAnalysis!);
+    _liveTranscriptController.add(_currentLiveAnalysis!.transcript);
 
     int step = 0;
     _analysisTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
@@ -244,7 +275,6 @@ class AudioStreamService {
       step++;
 
       if (step == 1) {
-        // Voice anomaly detected
         final warning = ScamWarning(
           id: 'live_w1',
           title: '⚠️ Synthetic voice profile',
@@ -272,7 +302,6 @@ class AudioStreamService {
           detectedPatterns: ['Deepfake Neural Synthesis', 'Bank Caller Impersonation'],
         );
       } else if (step == 2) {
-        // Urgency detected
         final warning2 = ScamWarning(
           id: 'live_w2',
           title: '⚠️ Urgent payment request',
@@ -329,6 +358,140 @@ class AudioStreamService {
 
       _liveAnalysisController.add(_currentLiveAnalysis!);
       _liveTranscriptController.add(_currentLiveAnalysis!.transcript);
+    });
+  }
+
+  void _startFamilyDeepfakeSimulation() {
+    _currentLiveAnalysis = CallAnalysis(
+      overallRisk: 25,
+      level: RiskLevel.moderate,
+      voiceRisk: 45,
+      scamRisk: 20,
+      urgencyScore: 30,
+      voiceAnalysis: VoiceAnalysisResult(
+        isAiVoice: true,
+        confidence: 0.45,
+        spectralJitter: 0.55,
+        pitchStability: 0.70,
+        voiceProfile: 'Analyzing emotive acoustic profile...',
+      ),
+      transcript: "Caller: 'Mom? Are you there? Something terrible happened...'",
+      warnings: [],
+      detectedPatterns: ['Voice Pattern Matching'],
+      callerName: _currentCallerName,
+      callerNumber: _currentCallerNumber,
+      callDurationSeconds: _callDurationSeconds,
+      isLive: true,
+    );
+    _liveAnalysisController.add(_currentLiveAnalysis!);
+    _liveTranscriptController.add(_currentLiveAnalysis!.transcript);
+
+    int step = 0;
+    _analysisTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      if (!_isProtectionActive) {
+        timer.cancel();
+        return;
+      }
+      step++;
+
+      if (step == 1) {
+        final warning = ScamWarning(
+          id: 'fam_w1',
+          title: '🚨 Cloned Family Voice Detected',
+          description: 'High confidence zero-shot AI voice clone detected mimicking emotional distress.',
+          category: 'DEEPFAKE_VOICE',
+          severity: RiskLevel.critical,
+        );
+        _newWarningController.add(warning);
+
+        _currentLiveAnalysis = _currentLiveAnalysis!.copyWith(
+          overallRisk: 68,
+          level: RiskLevel.high,
+          voiceRisk: 94,
+          scamRisk: 55,
+          urgencyScore: 80,
+          voiceAnalysis: VoiceAnalysisResult(
+            isAiVoice: true,
+            confidence: 0.94,
+            spectralJitter: 0.89,
+            pitchStability: 0.96,
+            voiceProfile: 'Zero-Shot AI Voice Clone (Cloned Audio)',
+          ),
+          transcript: "Caller: 'I got into a bad car accident downtown! The police are holding my car and I need help!'",
+          warnings: [warning],
+          detectedPatterns: ['Deepfake Voice Clone', 'Distress Manipulation'],
+        );
+      } else if (step >= 2) {
+        final warning2 = ScamWarning(
+          id: 'fam_w2',
+          title: '⚠️ Emergency Wire Demand',
+          description: 'Demanding immediate financial wire transfer to avoid fabricated legal arrest.',
+          category: 'URGENT_PAYMENT',
+          severity: RiskLevel.critical,
+        );
+        _newWarningController.add(warning2);
+
+        final currentWarnings = List<ScamWarning>.from(_currentLiveAnalysis!.warnings);
+        if (!currentWarnings.any((w) => w.category == 'URGENT_PAYMENT')) {
+          currentWarnings.add(warning2);
+        }
+
+        _currentLiveAnalysis = _currentLiveAnalysis!.copyWith(
+          overallRisk: 89,
+          level: RiskLevel.critical,
+          voiceRisk: 94,
+          scamRisk: 88,
+          urgencyScore: 95,
+          transcript: "Caller: 'Please wire \$2,000 right now to this account or they will take me to jail. Please don\\'t call Dad!'",
+          warnings: currentWarnings,
+          detectedPatterns: ['Deepfake Voice Clone', 'Emergency Wire Demand', 'Isolation Tactic'],
+        );
+      }
+
+      _liveAnalysisController.add(_currentLiveAnalysis!);
+      _liveTranscriptController.add(_currentLiveAnalysis!.transcript);
+    });
+  }
+
+  void _startSafeCallSimulation() {
+    _currentLiveAnalysis = CallAnalysis(
+      overallRisk: 12,
+      level: RiskLevel.safe,
+      voiceRisk: 8,
+      scamRisk: 15,
+      urgencyScore: 10,
+      voiceAnalysis: VoiceAnalysisResult(
+        isAiVoice: false,
+        confidence: 0.08,
+        spectralJitter: 0.12,
+        pitchStability: 0.22,
+        voiceProfile: 'Natural Human Acoustics (Authentic)',
+      ),
+      transcript: "Caller: 'Hey, just checking in to see if you are still free for lunch today at 1 PM downtown?'",
+      warnings: [],
+      detectedPatterns: ['Natural Speech Verified', 'No Malicious Anomaly'],
+      callerName: _currentCallerName,
+      callerNumber: _currentCallerNumber,
+      callDurationSeconds: _callDurationSeconds,
+      isLive: true,
+    );
+    _liveAnalysisController.add(_currentLiveAnalysis!);
+    _liveTranscriptController.add(_currentLiveAnalysis!.transcript);
+
+    int step = 0;
+    _analysisTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      if (!_isProtectionActive) {
+        timer.cancel();
+        return;
+      }
+      step++;
+      if (step >= 2) {
+        _currentLiveAnalysis = _currentLiveAnalysis!.copyWith(
+          transcript: "Caller: 'Let me know whenever you have a chance, see you soon!'",
+        );
+        _liveAnalysisController.add(_currentLiveAnalysis!);
+        _liveTranscriptController.add(_currentLiveAnalysis!.transcript);
+      }
     });
   }
 
