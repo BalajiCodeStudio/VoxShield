@@ -1,0 +1,138 @@
+# VoxShield Member 1 - AI/Deepfake Voice Detection Configuration
+project: voxshield
+module: voice-deepfake-detection
+version: "1.0.0"
+
+# Reproducibility
+seed: 42
+
+# Audio settings
+sample_rate: 16000
+segment_samples: 64600    # ~4.04s at 16kHz
+segment_seconds: 4.04
+hop_samples: 32000        # 2s hop for overlapping windows
+max_audio_duration: 120   # seconds
+
+# Paths (relative to project root)
+paths:
+  ml_dir: ml
+  configs_dir: ml/configs
+  datasets_dir: ml/datasets
+  splits_dir: ml/datasets/splits
+  models_dir: ml/models
+  evaluation_dir: ml/evaluation
+  cache_dir: .cache/huggingface
+  metadata_csv: ml/datasets/metadata.csv
+  model_metadata: ml/models/model_metadata.json
+  threshold_json: ml/evaluation/threshold.json
+  ensemble_weights: ml/evaluation/ensemble_weights.json
+  results_json: ml/evaluation/results.json
+
+# Model registry
+models:
+  primary: w2v2_aasist
+  secondary: xlsr_sls
+  tertiary: wav2vec2_antideepfake
+  members:
+    w2v2_aasist:
+      hf_model_id: SpeechAntiSpoofingBenchmarks/W2V2-AASIST
+      onnx_file: w2v2-aasist.onnx
+      window_samples: 64600
+      score_index: 1
+      score_kind: logits
+      license: MIT
+      enabled: true
+      description: "wav2vec 2.0 XLS-R 300M + AASIST graph-attention backend"
+    xlsr_sls:
+      hf_model_id: SpeechAntiSpoofingBenchmarks/XLSR-SLS
+      onnx_file: xlsr-sls.onnx
+      window_samples: 64600
+      score_index: 1
+      score_kind: log_softmax
+      license: MIT
+      enabled: true
+      description: "wav2vec 2.0 XLS-R 300M + Sensitive Layer Selection classifier"
+    wav2vec2_antideepfake:
+      hf_model_id: SpeechAntiSpoofingBenchmarks/Wav2Vec2-Large-AntiDeepfake
+      onnx_file: wav2vec2-large-antideepfake.onnx
+      window_samples: 64600
+      score_index: 1
+      score_kind: logits
+      license: CC-BY-NC-SA-4.0
+      enabled: false
+      description: "wav2vec2 Large + FC classifier (non-commercial license)"
+
+# Ensemble configuration
+ensemble:
+  method: logistic_regression  # logistic_regression | weighted_average
+  weights_file: ml/evaluation/ensemble_weights.json
+  fallback_weights:
+    w2v2_aasist: 0.34
+    xlsr_sls: 0.33
+    wav2vec2_antideepfake: 0.33
+
+# Audio validation limits
+audio:
+  max_upload_bytes: 26214400   # 25 MB
+  allowed_extensions:
+    - .wav
+    - .mp3
+    - .m4a
+    - .flac
+    - .ogg
+  min_duration_seconds: 0.5
+  max_duration_seconds: 120
+  min_rms: 1e-4
+  normalize: true
+
+# Training configuration
+training:
+  epochs: 10
+  batch_size: 4
+  gradient_accumulation_steps: 4
+  learning_rate: 1e-5
+  weight_decay: 0.01
+  warmup_ratio: 0.1
+  mixed_precision: true
+  early_stopping_patience: 3
+  max_grad_norm: 1.0
+  num_workers: 2
+  # Backbone for transformers fine-tuning
+  backbone: facebook/wav2vec2-base
+  # Segmentation for training
+  use_segmentation: false
+  # Augmentation (train only)
+  augmentation:
+    add_noise_snr_db: 20
+    volume_range: [0.8, 1.2]
+    random_gain_db: 3
+    lowpass_cutoff_hz: 4000
+    telephone_band: false
+
+# Inference configuration
+inference:
+  aggregation: mean   # mean | median | max
+  thresholds:
+    # Defaults until validation calibration (threshold.py overrides)
+    fake_threshold: 0.5
+    real_threshold: 0.5
+    uncertain_band: 0.0
+  ensemble:
+    use_local_onnx: false
+    local_primary_onnx: null
+
+# Evaluation
+evaluation:
+  metrics_dir: ml/evaluation
+  plots_dir: ml/evaluation/plots
+  cross_generator: true
+  cross_dataset: true
+  robustness:
+    enabled: true
+    conditions:
+      - clean
+      - noise_20db
+      - noise_10db
+      - lowpass_4k
+      - volume_low
+      - volume_high

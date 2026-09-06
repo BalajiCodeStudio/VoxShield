@@ -1,0 +1,20 @@
+# VoxShield Member 1 - AI/Deepfake Voice Detection (training, evaluation, export)
+# NOTE: install torch/torchaudio from the PyTorch CUDA index first, e.g.
+#   pip install torch==2.4.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cu124
+torch==2.4.1
+torchaudio==2.4.1
+transformers>=4.44
+datasets>=2.20
+huggingface_hub>=0.24
+librosa>=0.10
+soundfile>=0.12
+numpy>=1.26
+pandas>=2.0
+scikit-learn>=1.4
+scipy>=1.11
+onnx>=1.16
+onnxruntime>=1.18
+PyYAML>=6.0
+matplotlib>=3.8
+seaborn>=0.13
+tqdm>=4.66
