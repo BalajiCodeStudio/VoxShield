@@ -1,0 +1,22 @@
+system:
+  name: "RawTFNet"
+  slug: "rawtfnet"
+  description: >
+    Lightweight raw-waveform CNN for speech anti-spoofing: sinc-convolution
+    front-end, depthwise-separable Res2Net-SE conv blocks, and a Tf-SepNet
+    (time-frequency separable) classifier (depth=10, width=32). ASVspoof2019 LA
+    pretrained, FP32, deterministic first-64600-sample window (no random crop).
+  code: "https://github.com/swagshaw/RawTFNet-Pytorch"
+  checkpoint: "https://huggingface.co/SpeechAntiSpoofingBenchmarks/RawTFNet/blob/aa12f0fe2f10cc5278c954175a12c18cc43e3113/Best_RawTFNet_32.pth"
+  params_millions: 0.177540
+  paper:
+    arxiv_id: "2507.08227"
+    url: "https://arxiv.org/abs/2507.08227"
+    bibtex: |
+      @article{xiao2025rawtfnet,
+        title={RawTFNet: A Lightweight CNN Architecture for Speech Anti-spoofing},
+        author={Xiao, Yang and Dang, Ting and Das, Rohan Kumar},
+        journal={arXiv preprint arXiv:2507.08227},
+        year={2025}
+      }
+notes: "Deterministic first-64600-sample window (no random crop). Full RawTFNet (width=32), Best_RawTFNet_32.pth."

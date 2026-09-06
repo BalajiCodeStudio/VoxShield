@@ -1,82 +1,63 @@
-"""Tests for VoiceDetector service: classification, aggregation, error handling."""
-from __future__ import annotations
+"""
+Unit tests for VoxShield VoiceDetector and RawTFNetModel.
+"""
 
-import numpy as np
+import os
 import pytest
-from unittest.mock import patch, MagicMock
+import numpy as np
+from ml.inference.detector import VoiceDetector
+from ml.inference.models.rawtfnet import RawTFNetModel
 
 
-class TestClassification:
-    def test_classify_real(self):
-        from backend.services.voice_detector import VoiceDetector
-        detector = VoiceDetector({"inference": {"thresholds": {"fake_threshold": 0.5, "real_threshold": 0.5, "uncertain_band": 0.0}}, "ensemble": {"fallback_weights": {}}, "paths": {"threshold_json": "ml/evaluation/threshold.json", "ensemble_weights": "ml/evaluation/ensemble_weights.json"}})
-        pred, conf, reason = detector.classify(0.1)
-        assert pred == "REAL"
-        assert conf == pytest.approx(0.9, abs=0.01)
-
-    def test_classify_fake(self):
-        from backend.services.voice_detector import VoiceDetector
-        detector = VoiceDetector({"inference": {"thresholds": {"fake_threshold": 0.5, "real_threshold": 0.5, "uncertain_band": 0.0}}, "ensemble": {"fallback_weights": {}}, "paths": {"threshold_json": "ml/evaluation/threshold.json", "ensemble_weights": "ml/evaluation/ensemble_weights.json"}})
-        pred, conf, reason = detector.classify(0.9)
-        assert pred == "AI_GENERATED"
-        assert conf == pytest.approx(0.9, abs=0.01)
-
-    def test_classify_uncertain(self):
-        from backend.services.voice_detector import VoiceDetector
-        detector = VoiceDetector({"inference": {"thresholds": {"fake_threshold": 0.5, "real_threshold": 0.5, "uncertain_band": 0.1}}, "ensemble": {"fallback_weights": {}}, "paths": {"threshold_json": "ml/evaluation/threshold.json", "ensemble_weights": "ml/evaluation/ensemble_weights.json"}})
-        pred, conf, reason = detector.classify(0.5)
-        assert pred == "UNCERTAIN"
-        assert reason is not None
+def test_rawtfnet_model_load():
+    model = RawTFNetModel()
+    model.load()
+    assert model.is_loaded is True
+    assert model.parameter_count > 0
+    assert model.checkpoint_size_bytes > 0
 
 
-class TestAggregation:
-    def test_weighted_average(self):
-        from backend.services.voice_detector import VoiceDetector
-        config = {
-            "inference": {"thresholds": {"fake_threshold": 0.5, "real_threshold": 0.5, "uncertain_band": 0.0}},
-            "ensemble": {"fallback_weights": {"model_a": 0.6, "model_b": 0.4}},
-            "paths": {"threshold_json": "ml/evaluation/threshold.json", "ensemble_weights": "ml/evaluation/ensemble_weights.json"},
-        }
-        detector = VoiceDetector(config)
-        ensemble_p, scores = detector.aggregate_predictions({"model_a": 0.8, "model_b": 0.2})
-        expected = 0.6 * 0.8 + 0.4 * 0.2
-        assert ensemble_p == pytest.approx(expected, abs=0.01)
+def test_rawtfnet_predict_waveform():
+    model = RawTFNetModel()
+    model.load()
+    dummy = np.random.randn(64600).astype(np.float32)
+    fake_p, real_p, logits = model.predict(dummy)
 
-    def test_single_model(self):
-        from backend.services.voice_detector import VoiceDetector
-        config = {
-            "inference": {"thresholds": {"fake_threshold": 0.5, "real_threshold": 0.5, "uncertain_band": 0.0}},
-            "ensemble": {"fallback_weights": {}},
-            "paths": {"threshold_json": "ml/evaluation/threshold.json", "ensemble_weights": "ml/evaluation/ensemble_weights.json"},
-        }
-        detector = VoiceDetector(config)
-        ensemble_p, scores = detector.aggregate_predictions({"model_a": 0.75})
-        assert ensemble_p == pytest.approx(0.75, abs=0.01)
-
-    def test_no_models_raises(self):
-        from backend.services.voice_detector import VoiceDetector
-        from backend.models.model_loader import ModelUnavailableError
-        config = {
-            "inference": {"thresholds": {"fake_threshold": 0.5, "real_threshold": 0.5, "uncertain_band": 0.0}},
-            "ensemble": {"fallback_weights": {}},
-            "paths": {"threshold_json": "ml/evaluation/threshold.json", "ensemble_weights": "ml/evaluation/ensemble_weights.json"},
-        }
-        detector = VoiceDetector(config)
-        with pytest.raises(ModelUnavailableError):
-            detector.aggregate_predictions({})
+    assert 0.0 <= fake_p <= 1.0
+    assert 0.0 <= real_p <= 1.0
+    assert abs((fake_p + real_p) - 1.0) < 1e-4
+    assert len(logits) == 2
 
 
-class TestErrorHandling:
-    def test_predict_file_short(self, short_wav):
-        from backend.services.voice_detector import VoiceDetector, get_voice_detector
-        detector = VoiceDetector({"inference": {"thresholds": {"fake_threshold": 0.5, "real_threshold": 0.5, "uncertain_band": 0.0}}, "ensemble": {"fallback_weights": {}}, "paths": {"cache_dir": ".cache/hf", "threshold_json": "ml/evaluation/threshold.json", "ensemble_weights": "ml/evaluation/ensemble_weights.json"}})
-        result = detector.predict_file(short_wav)
-        assert not result.success
-        assert result.error_code == "AUDIO_TOO_SHORT"
+def test_detector_predict_contract():
+    detector = VoiceDetector()
+    detector.load_model()
+    dummy = np.random.randn(64600).astype(np.float32)
+    res = detector.predict(dummy)
 
-    def test_predict_file_silent(self, silent_wav):
-        from backend.services.voice_detector import VoiceDetector
-        detector = VoiceDetector({"inference": {"thresholds": {"fake_threshold": 0.5, "real_threshold": 0.5, "uncertain_band": 0.0}}, "ensemble": {"fallback_weights": {}}, "paths": {"cache_dir": ".cache/hf", "threshold_json": "ml/evaluation/threshold.json", "ensemble_weights": "ml/evaluation/ensemble_weights.json"}})
-        result = detector.predict_file(silent_wav)
-        assert not result.success
-        assert result.error_code == "AUDIO_SILENT"
+    assert "prediction" in res
+    assert res["prediction"] in ["REAL", "AI_GENERATED", "UNCERTAIN"]
+    assert "deepfake_score" in res
+    assert "real_probability" in res
+    assert "fake_probability" in res
+    assert "segments_analyzed" in res
+    assert "processing_time_ms" in res
+    assert res["model_name"] == "RawTFNet"
+    assert res["embedding_drift_score"] is None
+
+
+def test_detector_short_audio_uncertain():
+    detector = VoiceDetector()
+    # 0.05 seconds of audio (too short)
+    short_audio = np.random.randn(800).astype(np.float32)
+    res = detector.predict(short_audio)
+    assert res["prediction"] == "UNCERTAIN"
+    assert res["deepfake_score"] is None
+
+
+def test_detector_silent_audio_uncertain():
+    detector = VoiceDetector()
+    silence = np.zeros(64600, dtype=np.float32)
+    res = detector.predict(silence)
+    assert res["prediction"] == "UNCERTAIN"
+    assert res["deepfake_score"] is None

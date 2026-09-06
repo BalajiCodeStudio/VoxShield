@@ -1,14 +1,38 @@
 {
-  "model_version": "1.0.0",
-  "primary_model": "W2V2-AASIST",
-  "secondary_model": "XLSR-SLS",
-  "tertiary_model": "Wav2Vec2-Large-AntiDeepfake",
-  "sample_rate": 16000,
-  "segment_samples": 64600,
-  "threshold": null,
-  "training_dataset": null,
-  "training_date": null,
-  "metrics": {},
-  "ensemble_method": null,
-  "note": "Populated automatically after training/evaluation. Do not edit manually."
+  "model_name": "RawTFNet",
+  "repository": "SpeechAntiSpoofingBenchmarks/RawTFNet",
+  "source_code": "https://github.com/swagshaw/RawTFNet-Pytorch",
+  "paper": {
+    "title": "RawTFNet: A Lightweight CNN Architecture for Speech Anti-spoofing",
+    "authors": ["Yang Xiao", "Ting Dang", "Rohan Kumar Das"],
+    "year": 2025,
+    "arxiv": "2507.08227"
+  },
+  "parameter_count": 177540,
+  "parameter_count_millions": 0.17754,
+  "checkpoint_file": "Best_RawTFNet_32.pth",
+  "checkpoint_size_bytes": 911658,
+  "checkpoint_size_mb": 0.8694,
+  "onnx_file": "rawtfnet.onnx",
+  "onnx_size_bytes": 867404,
+  "onnx_size_mb": 0.8272,
+  "sample_rate_hz": 16000,
+  "window_samples": 64600,
+  "window_duration_seconds": 4.0375,
+  "input_shape": [1, 64600],
+  "input_dtype": "float32",
+  "classes": {
+    "0": "AI_GENERATED",
+    "1": "REAL"
+  },
+  "training_data": "ASVspoof 2019 Logical Access (LA) with RawBoost",
+  "license": "MIT",
+  "published_benchmarks": {
+    "ASVspoof2019_LA_EER": 1.99,
+    "ASVspoof2021_LA_EER": 8.03,
+    "ASVspoof2021_DF_EER": 15.16,
+    "InTheWild_EER": 38.51,
+    "LibriSeVoc_EER": 29.76,
+    "CFAD_EER": 36.62
+  }
 }
