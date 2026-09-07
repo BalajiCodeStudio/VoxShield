@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/call_analysis.dart';
 import '../services/api_service.dart';
 import '../services/audio_service.dart';
+import '../services/call_monitor.dart';
 import 'call_screen.dart';
 import 'history_screen.dart';
 import 'risk_screen.dart';
@@ -24,12 +25,32 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isShieldEnabled = true;
   bool _isBackendOnline = false;
   String _pingLatency = '';
+  bool _phonePermission = false;
+  bool _micPermission = false;
+  bool _overlayPermission = false;
 
   @override
   void initState() {
     super.initState();
     _audioService.initializeDemoHistory();
     _checkServer();
+    _checkPermissions();
+  }
+
+  void _checkPermissions() async {
+    final status = await CallMonitorService().checkPermissions();
+    if (mounted) {
+      setState(() {
+        _phonePermission = status['phone'] ?? false;
+        _micPermission = status['mic'] ?? false;
+        _overlayPermission = status['overlay'] ?? false;
+      });
+    }
+  }
+
+  void _requestAllPermissions() async {
+    await CallMonitorService().requestAllPermissions();
+    _checkPermissions();
   }
 
   void _checkServer() async {
@@ -463,6 +484,10 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             // Active Shield Master Banner
             _buildMasterShieldCard(),
+            const SizedBox(height: 16),
+
+            // Live Call Overlay & Phone Call Protection Banner
+            _buildLiveCallProtectionCard(),
             const SizedBox(height: 20),
 
             // Statistics Grid
@@ -664,6 +689,128 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               );
             },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLiveCallProtectionCard() {
+    final allGranted = _phonePermission && _micPermission && _overlayPermission;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF131B2E),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: allGranted ? const Color(0xFF10B981).withValues(alpha: 0.4) : const Color(0xFFF59E0B).withValues(alpha: 0.4),
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                allGranted ? Icons.check_circle_rounded : Icons.warning_amber_rounded,
+                color: allGranted ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Live Call Slide-In Protection',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Requires 3 permissions to detect calls, analyze speakerphone audio, and slide the HUD over your dialer.',
+            style: TextStyle(color: Colors.white70, fontSize: 12),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              _buildPermissionBadge('Overlay', _overlayPermission),
+              _buildPermissionBadge('Phone', _phonePermission),
+              _buildPermissionBadge('Microphone', _micPermission),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              if (!allGranted)
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _requestAllPermissions,
+                    icon: const Icon(Icons.security, size: 16),
+                    label: const Text('Grant All', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2563EB),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ),
+              if (!allGranted) const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    if (!_overlayPermission) {
+                      await CallMonitorService().requestAllPermissions();
+                      _checkPermissions();
+                    }
+                    await CallMonitorService().testTriggerOverlay();
+                  },
+                  icon: const Icon(Icons.smart_display_outlined, size: 16, color: Color(0xFF38BDF8)),
+                  label: const Text('Test HUD', style: TextStyle(color: Color(0xFF38BDF8), fontSize: 12, fontWeight: FontWeight.bold)),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFF38BDF8)),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPermissionBadge(String label, bool isGranted) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: isGranted ? const Color(0xFF10B981).withValues(alpha: 0.15) : const Color(0xFFEF4444).withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isGranted ? const Color(0xFF10B981).withValues(alpha: 0.5) : const Color(0xFFEF4444).withValues(alpha: 0.5),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isGranted ? Icons.check : Icons.close,
+            size: 12,
+            color: isGranted ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: isGranted ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ],
       ),

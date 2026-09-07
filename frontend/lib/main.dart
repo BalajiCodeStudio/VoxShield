@@ -3,6 +3,19 @@ import 'package:flutter/services.dart';
 import 'models/call_analysis.dart';
 import 'screens/history_screen.dart';
 import 'screens/home_screen.dart';
+import 'widgets/call_overlay.dart';
+import 'services/call_monitor.dart';
+
+@pragma("vm:entry-point")
+void overlayMain() {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(
+    const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: CallOverlayWidget(),
+    ),
+  );
+}
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,6 +27,10 @@ void main() {
       systemNavigationBarIconBrightness: Brightness.light,
     ),
   );
+  
+  // Initialize the background call listener
+  CallMonitorService().initialize();
+  
   runApp(const VoxShieldApp());
 }
 

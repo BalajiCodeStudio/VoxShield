@@ -43,3 +43,4 @@ async def analyze_audio_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         logger.error(f"Internal error during analysis: {e}")
         raise HTTPException(status_code=500, detail="Internal server error during analysis")
+ 
